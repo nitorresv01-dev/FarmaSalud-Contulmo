@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FarmaSalud Contulmo | Comprometidos con tu salud y la de tu mascota</title>
+    
+    <!-- Tailwind CSS para diseño responsivo y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome para los íconos -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- SheetJS para leer el archivo Excel directamente en el navegador -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Configuración de colores corporativos -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        farmaGreen: '#8DC63F',
+                        farmaPurple: '#752888',
+                        farmaDarkPurple: '#561c65',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .hero-pattern {
+            background-color: #8DC63F;
+            background-image: radial-gradient(#ffffff 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        .smooth-transition { transition: all 0.3s ease; }
+        
+        /* Ocultar barra de scroll pero mantener funcionalidad */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <!-- Logo -->
+                <div class="flex items-center gap-3 cursor-pointer" onclick="window.scrollTo(0,0)">
+                    <div class="relative flex items-center justify-center w-12 h-12 bg-farmaPurple rounded-full shadow-lg">
+                        <i class="fa-solid fa-plus text-white text-3xl"></i>
+                    </div>
+                    <div class="leading-none">
+                        <h1 class="text-3xl font-extrabold tracking-tight">
+                            <span class="text-farmaGreen">FARMA</span><span class="text-farmaPurple">SALUD</span>
+                        </h1>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Contulmo</span>
+                    </div>
+                </div>
+                
+                <!-- Info de contacto en Header (Desktop) -->
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-location-dot text-farmaGreen text-lg"></i>
+                        <span>Los Canelos 651-B, Contulmo</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fa-regular fa-clock text-farmaPurple text-lg"></i>
+                        <span>Lun - Sáb: 09:00 a 20:00 hrs</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section con Buscador -->
+    <section class="hero-pattern py-12 md:py-20 relative overflow-hidden shadow-inner">
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/10"></div>
+        <div class="max-w-4xl mx-auto px-4 relative z-10 text-center">
+            <h2 class="text-white text-4xl md:text-5xl font-extrabold mb-4 shadow-sm">
+                Comprometidos con tu salud y la de tu mascota
+            </h2>
+            <p class="text-green-50 text-lg md:text-xl mb-10 font-medium">
+                Encuentra tus medicamentos y productos de farmacia al mejor precio.
+            </p>
+
+            <!-- Buscador Principal -->
+            <div class="bg-white p-2 rounded-2xl shadow-2xl flex items-center gap-2 max-w-3xl mx-auto border-4 border-white/50">
+                <i class="fa-solid fa-magnifying-glass text-gray-400 text-xl ml-4"></i>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="w-full py-4 px-2 text-lg outline-none text-gray-700 bg-transparent placeholder-gray-400"
+                    placeholder="Buscar medicamento, principio activo o laboratorio..."
+                    autocomplete="off"
+                >
+                <button 
+                    onclick="searchProducts()"
+                    class="bg-farmaPurple hover:bg-farmaDarkPurple text-white px-8 py-4 rounded-xl font-bold text-lg smooth-transition shadow-md"
+                >
+                    Buscar
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Área Principal -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Controles y Filtros -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div class="text-gray-600 font-medium" id="resultsCount">
+                Cargando catálogo...
+            </div>
+            
+            <!-- Botón para mostrar panel de administrador -->
+            <button onclick="toggleAdminPanel()" class="text-sm flex items-center gap-2 text-farmaPurple hover:text-farmaDarkPurple font-semibold bg-purple-50 px-4 py-2 rounded-lg border border-purple-100 smooth-transition">
+                <i class="fa-solid fa-upload"></i> Actualizar Catálogo (Admin)
+            </button>
+        </div>
+
+        <!-- Panel de Administrador (Oculto por defecto) -->
+        <div id="adminPanel" class="hidden mb-10 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">Cargar archivo Maestro Excel</h3>
+            <p class="text-sm text-gray-500 mb-4">Selecciona tu archivo <code>MAESTRO.xlsx</code> para actualizar los precios y el stock de la página instantáneamente. <i>(Los datos no se suben a internet, se procesan en tu propio navegador)</i>.</p>
+            
+            <div class="flex items-center justify-center w-full">
+                <label for="excelUpload" class="flex flex-col items-center justify-center w-full h-32 border-2 border-farmaGreen border-dashed rounded-xl cursor-pointer bg-green-50 hover:bg-green-100 smooth-transition">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <i class="fa-solid fa-file-excel text-3xl text-farmaGreen mb-2"></i>
+                        <p class="mb-2 text-sm text-gray-700 font-semibold"><span class="font-bold">Haz clic para subir</span> o arrastra el Excel aquí</p>
+                    </div>
+                    <input id="excelUpload" type="file" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleFileUpload(event)" />
+                </label>
+            </div>
+            <div id="uploadStatus" class="mt-3 text-sm font-semibold text-center text-farmaPurple hidden">Procesando archivo, por favor espera...</div>
+        </div>
+
+        <!-- Grid de Productos -->
+        <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Los productos se insertan aquí vía JavaScript -->
+        </div>
+
+        <!-- Paginación -->
+        <div id="pagination" class="flex justify-center items-center gap-2 mt-12 mb-8">
+            <!-- Botones de paginación se insertan aquí -->
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-300 py-12 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+                <div class="flex items-center gap-2 mb-4">
+                    <i class="fa-solid fa-plus text-farmaGreen text-2xl"></i>
+                    <h2 class="text-2xl font-bold text-white">FARMA<span class="text-farmaGreen">SALUD</span></h2>
+                </div>
+                <p class="text-sm text-gray-400">Tu farmacia de confianza en Contulmo. Estamos comprometidos con brindarte el mejor servicio y los mejores precios para el cuidado de tu familia.</p>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-4">Contacto</h3>
+                <ul class="space-y-3 text-sm">
+                    <li class="flex items-center gap-3"><i class="fa-solid fa-location-dot text-farmaGreen w-4"></i> Los Canelos 651-B, Contulmo, Región del Biobío</li>
+                    <li class="flex items-center gap-3"><i class="fa-regular fa-clock text-farmaGreen w-4"></i> Lunes a Sábado: 10:00 a 20:00 hrs</li>
+                    <li class="flex items-center gap-3"><i class="fa-brands fa-facebook text-farmaGreen w-4"></i> facebook.com/Farmasalud-Contulmo</li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-4">Medios de Pago</h3>
+                <div class="flex gap-4 text-3xl">
+                    <i class="fa-brands fa-cc-visa hover:text-white smooth-transition"></i>
+                    <i class="fa-brands fa-cc-mastercard hover:text-white smooth-transition"></i>
+                    <i class="fa-solid fa-money-bill-wave hover:text-white smooth-transition"></i>
+                </div>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 mt-8 pt-8 border-t border-gray-800 text-sm text-center text-gray-500">
+            &copy; 2026 Farmacia FarmaSalud Contulmo. Todos los derechos reservados.
+        </div>
+    </footer>
+
+    <!-- Lógica de la Aplicación -->
+    <script>
+        // Muestra inicial de productos (mientras no se cargue el Excel completo)
+        let allProducts = [
+            { lab: 'ABBOTT', nombre: 'SIMITRI 145/40 MG X 30 COMP', precio: 29990, stock: 0 },
+            { lab: 'ABBOTT', nombre: 'ACEBRON COM. 4MG 20', precio: 20990, stock: 1 },
+            { lab: 'ABBOTT', nombre: 'ACUODE 50.000 UI X 2 SOBRES', precio: 15990, stock: 0 },
+            { lab: 'ABBOTT', nombre: 'ALL OUT LOC.150ML C/PEINE', precio: 9290, stock: 11 },
+            { lab: 'ABBOTT', nombre: 'ALONDRA X 30 COMP', precio: 26990, stock: 1 },
+            { lab: 'ABBOTT', nombre: 'ARADIX RETARD 10 MG X 30 COMP', precio: 33450, stock: 0 },
+            { lab: 'ABBOTT', nombre: 'BACTEROL SUSP X 100 ML', precio: 9990, stock: 1 },
+            { lab: 'ABBOTT', nombre: 'BIOGAIA COM.MAST.30', precio: 21590, stock: 2 },
+            { lab: 'VOGUE', nombre: 'VOGUE MASCARA CURVAS PERFECTAS', precio: 6990, stock: 8 },
+            { lab: 'VOGUE', nombre: 'VOGUE MASCARA AL INFINITO 20HRS', precio: 5790, stock: 2 },
+            { lab: 'GENERICO', nombre: 'PARACETAMOL 500MG X 16 COMP', precio: 990, stock: 45 },
+            { lab: 'BAGO', nombre: 'TAPSIN COMPUESTO POLVO X 6 SOB', precio: 3590, stock: 12 },
+        ];
+        
+        let filteredProducts = [...allProducts];
+        
+        // Paginación
+        let currentPage = 1;
+        const itemsPerPage = 12;
+
+        // Formateador de moneda Chile
+        const clpFormatter = new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            minimumFractionDigits: 0
+        });
+
+        // Inicializar
+        window.onload = () => {
+            renderProducts();
+            
+            // Event listener para búsqueda en tiempo real
+            document.getElementById('searchInput').addEventListener('keyup', (e) => {
+                if(e.key === 'Enter') {
+                    searchProducts();
+                } else {
+                    // Búsqueda en vivo opcional
+                    searchProducts();
+                }
+            });
+        };
+
+        function toggleAdminPanel() {
+            const panel = document.getElementById('adminPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function searchProducts() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            if (query === '') {
+                filteredProducts = [...allProducts];
+            } else {
+                const terms = query.split(' ');
+                filteredProducts = allProducts.filter(p => {
+                    const searchableStr = `${p.nombre} ${p.lab}`.toLowerCase();
+                    return terms.every(term => searchableStr.includes(term));
+                });
+            }
+            
+            currentPage = 1;
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const grid = document.getElementById('productsGrid');
+            const countLabel = document.getElementById('resultsCount');
+            const paginationContainer = document.getElementById('pagination');
+            
+            grid.innerHTML = '';
+            
+            const totalItems = filteredProducts.length;
+            countLabel.innerHTML = `Mostrando <b>${totalItems}</b> productos disponibles`;
+
+            if (totalItems === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-gray-500">
+                        <i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i>
+                        <p class="text-lg">No encontramos productos que coincidan con tu búsqueda.</p>
+                        <p class="text-sm mt-1">Intenta con otros términos o consulta disponibilidad en la farmacia.</p>
+                    </div>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            // Calcular paginación
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const currentItems = filteredProducts.slice(startIndex, endIndex);
+
+            // Renderizar tarjetas
+            currentItems.forEach(item => {
+                const isAvailable = item.stock > 0;
+                
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl p-5 shadow-sm hover:shadow-xl border border-gray-100 flex flex-col h-full smooth-transition transform hover:-translate-y-1 relative overflow-hidden group";
+                
+                card.innerHTML = `
+                    <div class="absolute top-0 left-0 w-full h-1 bg-farmaGreen"></div>
+                    <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">${item.lab || 'Farmacia'}</div>
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 leading-tight group-hover:text-farmaPurple smooth-transition flex-grow">${item.nombre}</h3>
+                    
+                    <div class="mt-auto pt-4 border-t border-gray-100 flex items-end justify-between">
+                        <div>
+                            <div class="text-xs text-gray-500 mb-1">Precio</div>
+                            <div class="text-2xl font-extrabold text-farmaPurple">${clpFormatter.format(item.precio)}</div>
+                        </div>
+                        <div>
+                            ${isAvailable 
+                                ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-check"></i> Stock</span>` 
+                                : `<span class="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-xmark"></i> Agotado</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // Botón Anterior
+            const prevBtn = document.createElement('button');
+            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+            prevBtn.className = `w-10 h-10 rounded-full flex items-center justify-center border font-bold ${currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-farmaPurple border-farmaPurple hover:bg-farmaPurple hover:text-white smooth-transition'}`;
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { if(currentPage > 1) { currentPage--; renderProducts(); window.scrollTo(0, 300); } };
+            container.appendChild(prevBtn);
+
+            // Información de página
+            const info = document.createElement('span');
+            info.className = "text-sm font-semibold text-gray-600 px-4";
+            info.innerText = `Página ${currentPage} de ${totalPages}`;
+            container.appendChild(info);
+
+            // Botón Siguiente
+            const nextBtn = document.createElement('button');
+            nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            nextBtn.className = `w-10 h-10 rounded-full flex items-center justify-center border font-bold ${currentPage === totalPages ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-farmaPurple border-farmaPurple hover:bg-farmaPurple hover:text-white smooth-transition'}`;
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { if(currentPage < totalPages) { currentPage++; renderProducts(); window.scrollTo(0, 300); } };
+            container.appendChild(nextBtn);
+        }
+
+        // --- LÓGICA PARA LEER EL ARCHIVO EXCEL LOCALMENTE ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('uploadStatus');
+            status.classList.remove('hidden');
+            status.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Procesando archivo, por favor espera...`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    // Asumimos que los datos están en la primera hoja
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Según el formato analizado, los encabezados reales están en la fila 7 (index 6).
+                    // Configurando el parseo para saltar las primeras 6 filas.
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { range: 6 });
+                    
+                    let newProducts = [];
+                    
+                    jsonRows.forEach(row => {
+                        // Extraer datos usando los nombres de columna del Maestro
+                        const detalle = row['DETALLE'];
+                        const precio = row['PRECIO'];
+                        
+                        if (detalle && precio !== undefined && !isNaN(precio)) {
+                            newProducts.push({
+                                lab: row['LAB'] || 'VARIADO',
+                                nombre: String(detalle).trim(),
+                                precio: parseInt(precio),
+                                stock: parseInt(row['STOCK']) || 0
+                            });
+                        }
+                    });
+
+                    if (newProducts.length > 0) {
+                        allProducts = newProducts;
+                        searchProducts(); // Refrescar la vista con los nuevos datos
+                        status.classList.remove('text-farmaPurple');
+                        status.classList.add('text-farmaGreen');
+                        status.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i> ¡Éxito! Se cargaron ${allProducts.length} productos correctamente.`;
+                        
+                        // Ocultar panel después de un tiempo
+                        setTimeout(() => toggleAdminPanel(), 3000);
+                    } else {
+                        throw new Error("No se encontraron productos válidos. Verifica el formato del Excel.");
+                    }
+
+                } catch (error) {
+                    console.error(error);
+                    status.classList.remove('text-farmaPurple');
+                    status.classList.add('text-red-500');
+                    status.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i> Error: No se pudo leer el archivo.`;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    </script>
+</body>
+</html>
+
+```
