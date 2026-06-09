@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Inventario | FarmaSalud Contulmo</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { farmaGreen: '#8DC63F', farmaPurple: '#752888', farmaDarkPurple: '#561c65' } } }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .hero-pattern {
+            background-color: #752888;
+            background-image: radial-gradient(#ffffff 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .tab-active { border-bottom: 4px solid #8DC63F; color: #752888; font-weight: bold; }
+        .tab-inactive { border-bottom: 4px solid transparent; color: #6b7280; font-weight: 500; }
+        .tab-inactive:hover { color: #111827; }
+        
+        .pop-update { animation: pop 0.3s ease-in-out; }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+            <div class="flex justify-between items-center pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center justify-center w-12 h-12 bg-farmaGreen rounded-full shadow-lg">
+                        <i class="fa-solid fa-boxes-stacked text-white text-2xl"></i>
+                    </div>
+                    <div class="leading-none">
+                        <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">
+                            <span class="text-farmaGreen">FARMA</span><span class="text-farmaPurple">SALUD</span>
+                        </h1>
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Motor de Trazabilidad</span>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="flex space-x-8 mt-2 overflow-x-auto">
+                <button onclick="switchTab('inventory')" id="tab-btn-inventory" class="tab-active pb-3 px-1 text-sm transition-all whitespace-nowrap"><i class="fa-solid fa-clipboard-list mr-2"></i>Inventario Activo</button>
+                <button onclick="switchTab('history')" id="tab-btn-history" class="tab-inactive pb-3 px-1 text-sm transition-all whitespace-nowrap"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Trazabilidad y Auditoría</button>
+                <button onclick="switchTab('sync')" id="tab-btn-sync" class="tab-inactive pb-3 px-1 text-sm transition-all whitespace-nowrap"><i class="fa-solid fa-database mr-2"></i>Gestión de Maestros</button>
+            </nav>
+        </div>
+    </header>
+
+    <div id="view-inventory" class="flex-grow flex flex-col">
+        <section class="hero-pattern py-6 relative shadow-inner">
+            <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/20"></div>
+            <div class="max-w-7xl mx-auto px-4 relative z-10 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div class="bg-white p-2 rounded-xl shadow-xl flex items-center gap-2 w-full md:w-2/3 border-2 border-white/50">
+                    <i class="fa-solid fa-magnifying-glass text-gray-400 text-xl ml-4"></i>
+                    <input type="text" id="searchInput" class="w-full py-2 px-2 text-base outline-none text-gray-700 bg-transparent placeholder-gray-400" placeholder="Buscar medicamento por nombre o código..." autocomplete="off">
+                </div>
+                <button onclick="exportCurrentDifferences()" class="bg-farmaGreen hover:bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow-xl transition-all flex items-center justify-center gap-2 w-full md:w-auto">
+                    <i class="fa-solid fa-file-excel"></i> Exportar Diferencias
+                </button>
+            </div>
+        </section>
+
+        <main class="flex-grow max-w-7xl mx-auto w-full px-2 sm:px-6 lg:px-8 py-6">
+            <div class="bg-white rounded-xl shadow-md overflow-hidden" id="tableContainer">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Lab</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Producto</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Precio</th>
+                                <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-32">Stock Sist.</th>
+                                <th class="px-4 py-3 text-center text-xs font-bold text-farmaPurple uppercase w-32">Stock Real</th>
+                                <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase w-24">Diferencia</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tableBody"></tbody>
+                    </table>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                    <div><p class="text-sm text-gray-700" id="paginationInfo"></p></div>
+                    <div id="paginationControls" class="flex gap-1"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="view-history" class="flex-grow flex flex-col hidden">
+        <section class="bg-gray-800 py-6 relative shadow-inner">
+            <div class="max-w-7xl mx-auto px-4 relative z-10 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div class="text-white w-full md:w-1/3">
+                    <h2 class="text-xl font-bold"><i class="fa-solid fa-list-check mr-2 text-farmaGreen"></i>Log de Trazabilidad</h2>
+                    <p class="text-xs text-gray-400 mt-1">Filtra y audita exactamente qué ocurrió en un rango de tiempo.</p>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto bg-gray-900 p-2 rounded-xl">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-gray-400 ml-1">Desde:</span>
+                        <input type="datetime-local" id="histStart" class="p-2 rounded-lg text-sm text-gray-800 font-bold outline-none">
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-gray-400 ml-1">Hasta:</span>
+                        <input type="datetime-local" id="histEnd" class="p-2 rounded-lg text-sm text-gray-800 font-bold outline-none">
+                    </div>
+                    <button onclick="filterHistory()" class="mt-4 bg-farmaGreen hover:bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow transition-colors">
+                        <i class="fa-solid fa-filter"></i> Filtrar
+                    </button>
+                </div>
+                
+                <button onclick="exportHistory()" class="mt-4 md:mt-0 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold shadow-xl transition-all flex items-center justify-center gap-2 w-full md:w-auto">
+                    <i class="fa-solid fa-file-excel"></i> Exportar a Excel
+                </button>
+            </div>
+        </section>
+
+        <main class="flex-grow max-w-7xl mx-auto w-full px-2 sm:px-6 lg:px-8 py-6">
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fecha y Hora</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Acción</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Producto</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Detalle del Cambio</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="historyTableBody">
+                            <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">Selecciona un rango de fechas y presiona "Filtrar".</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="view-sync" class="flex-grow flex flex-col hidden bg-gray-100">
+        <main class="flex-grow max-w-5xl mx-auto w-full px-4 py-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-md border-t-4 border-red-500 hover:shadow-lg transition-shadow">
+                    <h3 class="text-lg font-bold text-gray-800 mb-2"><i class="fa-solid fa-triangle-exclamation text-red-500 mr-2"></i>Reset y Carga Inicial</h3>
+                    <p class="text-sm text-gray-600 mb-4">Borra la base local y el historial de trazabilidad completo. Inicia un catálogo desde cero.</p>
+                    <label class="block w-full text-center bg-red-50 hover:bg-red-100 text-red-700 font-bold py-3 px-4 rounded-lg cursor-pointer border border-red-200 transition-colors">
+                        Seleccionar Maestro Inicial (.csv)
+                        <input type="file" accept=".csv" class="hidden" onchange="handleCSVUpload(event, 'RESET')">
+                    </label>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-md border-t-4 border-farmaGreen hover:shadow-lg transition-shadow">
+                    <h3 class="text-lg font-bold text-gray-800 mb-2"><i class="fa-solid fa-rotate text-farmaGreen mr-2"></i>Actualizar Maestro Diario</h3>
+                    <p class="text-sm text-gray-600 mb-4">Sube el maestro de hoy. Detectará cambios de <b>Stock Sistema</b> y <b>Precios</b>, registrándolos en la trazabilidad sin borrar tu trabajo físico.</p>
+                    <label class="block w-full text-center bg-farmaGreen/10 hover:bg-farmaGreen/20 text-farmaDarkPurple font-bold py-3 px-4 rounded-lg cursor-pointer border border-farmaGreen/30 transition-colors">
+                        Seleccionar Maestro Actualizado (.csv)
+                        <input type="file" accept=".csv" class="hidden" onchange="handleCSVUpload(event, 'SYNC')">
+                    </label>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        localforage.config({ name: 'FarmaSalud_DB', storeName: 'inventory_store' });
+
+        let dbState = {
+            masterCatalog: {}, 
+            currentStock: {},  
+            events: []         
+        };
+
+        let filteredKeys = [];
+        let currentHistory = [];
+        let currentPage = 1;
+        const itemsPerPage = 50; 
+        const clpFormatter = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 });
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            const savedData = await localforage.getItem('appData');
+            if (savedData && Object.keys(savedData.masterCatalog || {}).length > 0) {
+                dbState = savedData;
+                refreshFilters();
+            } else {
+                switchTab('sync'); 
+            }
+
+            document.getElementById('searchInput').addEventListener('input', () => {
+                currentPage = 1; refreshFilters();
+            });
+            
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0);
+            const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59);
+            
+            document.getElementById('histStart').value = new Date(startOfDay.getTime() - startOfDay.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+            document.getElementById('histEnd').value = new Date(endOfDay.getTime() - endOfDay.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+        });
+
+        function switchTab(tabId) {
+            ['inventory', 'history', 'sync'].forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                document.getElementById(`tab-btn-${id}`).classList.replace('tab-active', 'tab-inactive');
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tabId}`).classList.replace('tab-inactive', 'tab-active');
+
+            if(tabId === 'inventory') refreshFilters();
+            if(tabId === 'history') filterHistory();
+        }
+
+        async function saveToDB() { await localforage.setItem('appData', dbState); }
+
+        function logEvent(id, field, oldVal, newVal, type) {
+            dbState.events.push({ ts: Date.now(), id, field, oldVal, newVal, type });
+            saveToDB();
+        }
+
+        function generateSafeId(rowIdx, codBarra) {
+            const cleanCb = codBarra ? codBarra.toString().trim().replace(/[^a-zA-Z0-9]/g, '') : 'NOCB';
+            return `prod_${rowIdx}_${cleanCb}`;
+        }
+
+        function renderDiffCell(id) {
+            const stockData = dbState.currentStock[id];
+            const diffCell = document.getElementById(`diff-${id}`);
+            
+            if (!diffCell || !stockData) return;
+
+            diffCell.classList.remove('pop-update');
+
+            if (stockData.real === '' || stockData.real === null || stockData.real === undefined) {
+                diffCell.innerHTML = '<span class="text-gray-400">-</span>';
+                return;
+            }
+
+            const realRaw = parseInt(stockData.real, 10);
+            const sysRaw = parseInt(stockData.sys, 10);
+            const safeReal = isNaN(realRaw) ? 0 : realRaw;
+            const safeSys = isNaN(sysRaw) ? 0 : sysRaw;
+            
+            const diff = safeReal - safeSys;
+
+            if (diff === 0) {
+                diffCell.innerHTML = `<span class="bg-green-100 text-green-700 font-bold px-2 py-1 rounded text-xs shadow-sm">✔ OK</span>`;
+            } else if (diff > 0) {
+                diffCell.innerHTML = `<span class="bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded text-xs shadow-sm">+${diff}</span>`;
+            } else {
+                diffCell.innerHTML = `<span class="bg-red-100 text-red-700 font-bold px-2 py-1 rounded text-xs shadow-sm">${diff}</span>`;
+            }
+
+            void diffCell.offsetWidth; 
+            diffCell.classList.add('pop-update');
+        }
+
+        function updateRealStock(id, newValue) {
+            const stockData = dbState.currentStock[id];
+            if (!stockData) return;
+            
+            const oldVal = stockData.real;
+            stockData.real = newValue; 
+            if (oldVal !== newValue) {
+                logEvent(id, 'real', oldVal, newValue, 'REAL_EDIT');
+            }
+            renderDiffCell(id); 
+        }
+
+        function enableEditSistema(id) {
+            const stockData = dbState.currentStock[id];
+            const container = document.getElementById(`sys-container-${id}`);
+            if (container && stockData) {
+                container.innerHTML = `
+                    <div class="flex items-center justify-center gap-1">
+                        <input type="number" id="sys-input-${id}" class="w-16 text-center border-2 border-farmaGreen rounded py-0.5 font-bold text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-farmaGreen" value="${stockData.sys}" onkeydown="if(event.key==='Enter') saveSistemaStock('${id}')">
+                        <button onclick="saveSistemaStock('${id}')" class="text-farmaGreen hover:text-green-600 p-1"><i class="fa-solid fa-check"></i></button>
+                    </div>`;
+                setTimeout(() => {
+                    const input = document.getElementById(`sys-input-${id}`);
+                    if(input) { input.focus(); input.select(); }
+                }, 50);
+            }
+        }
+
+        function saveSistemaStock(id) {
+            const stockData = dbState.currentStock[id];
+            const input = document.getElementById(`sys-input-${id}`);
+            if (!input || !stockData) return;
+
+            const valRaw = input.value.trim();
+            const newVal = valRaw === '' ? 0 : parseInt(valRaw, 10);
+            const oldVal = parseInt(stockData.sys, 10) || 0;
+
+            if (newVal !== oldVal) {
+                stockData.sys = newVal;
+                stockData.sysModificado = true;
+                logEvent(id, 'sys', oldVal, newVal, 'SYS_EDIT');
+            }
+            renderDiffCell(id);
+            
+            const container = document.getElementById(`sys-container-${id}`);
+            if (container) {
+                container.innerHTML = `<span class="text-orange-600 font-extrabold" title="Corregido manualmente">${newVal}*</span> <button onclick="enableEditSistema('${id}')" class="text-gray-400 hover:text-farmaPurple p-1 transition-colors"><i class="fa-solid fa-pen text-[10px]"></i></button>`;
+            }
+        }
+
+        function handleCSVUpload(event, mode) {
+            const file = event.target.files[0];
+            if (!file) return;
+            if(mode === 'RESET' && !confirm("⚠️ ALERTA: Esto purgará toda la base de datos y la trazabilidad. ¿Continuar?")) {
+                event.target.value = ''; return;
+            }
+            document.body.style.cursor = 'wait';
+            Papa.parse(file, {
+                complete: function(results) { 
+                    processMasterData(results.data, mode); 
+                    document.body.style.cursor = 'default';
+                    event.target.value = ''; 
+                },
+                error: function() { alert("Error procesando CSV."); document.body.style.cursor = 'default'; }
+            });
+        }
+
+        function processMasterData(rawData, mode) {
+            let headerRowIndex = -1;
+            for (let i = 0; i < Math.min(25, rawData.length); i++) {
+                if (rawData[i].includes("LAB") && rawData[i].includes("DETALLE")) {
+                    headerRowIndex = i; break;
+                }
+            }
+            if(headerRowIndex === -1) { alert("Formato inválido. Faltan LAB y DETALLE."); return; }
+
+            const labIdx = 0, codBarraIdx = 3, detalleIdx = 4, precioIdx = 7, stockIdx = 10;
+            if (mode === 'RESET') dbState = { masterCatalog: {}, currentStock: {}, events: [] };
+
+            let stats = { sysUpdates: 0, newItems: 0, priceUpdates: 0 };
+
+            for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+                const row = rawData[i];
+                if (!row || row.length < 11) continue; 
+                const detalle = row[detalleIdx];
+                if (!detalle || detalle.trim() === "") continue;
+
+                const uniqueId = generateSafeId(i, row[codBarraIdx]);
+                let precioParsed = parseInt(typeof row[precioIdx] === 'string' ? row[precioIdx].replace(/[^0-9]/g, '') : row[precioIdx]) || 0;
+                let sysParsed = parseInt(typeof row[stockIdx] === 'string' ? row[stockIdx].replace(/[^0-9-]/g, '') : row[stockIdx]) || 0;
+
+                if (mode === 'RESET' || !dbState.masterCatalog[uniqueId]) {
+                    dbState.masterCatalog[uniqueId] = {
+                        id: uniqueId, lab: row[labIdx] ? row[labIdx].trim() : 'VARIADOS',
+                        codBarra: row[codBarraIdx] ? row[codBarraIdx].trim() : '',
+                        nombre: String(detalle).trim(), precio: precioParsed
+                    };
+                    dbState.currentStock[uniqueId] = { sys: sysParsed, real: '', sysModificado: false };
+                    
+                    if (mode === 'SYNC') {
+                        logEvent(uniqueId, 'sys', 0, sysParsed, 'MASTER_SYNC');
+                        stats.newItems++;
+                    }
+                } else if (mode === 'SYNC') {
+                    const p = dbState.masterCatalog[uniqueId];
+                    if (p.precio !== precioParsed) {
+                        logEvent(uniqueId, 'precio', p.precio, precioParsed, 'PRICE_SYNC');
+                        p.precio = precioParsed;
+                        stats.priceUpdates++;
+                    }
+
+                    const s = dbState.currentStock[uniqueId];
+                    if (s.sys !== sysParsed && !s.sysModificado) {
+                        logEvent(uniqueId, 'sys', s.sys, sysParsed, 'MASTER_SYNC');
+                        s.sys = sysParsed;
+                        stats.sysUpdates++;
+                    }
+                }
+            }
+
+            saveToDB();
+            if(mode === 'SYNC') {
+                alert(`✅ Integración Exitosa:\n- ${stats.priceUpdates} precios actualizados.\n- ${stats.sysUpdates} saldos teóricos actualizados.\n- ${stats.newItems} fármacos nuevos.\n(Auditoría guardada en Trazabilidad)`);
+            }
+            switchTab('inventory');
+        }
+
+        function refreshFilters() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const keys = Object.keys(dbState.masterCatalog);
+            
+            if (query === '') filteredKeys = keys;
+            else {
+                const terms = query.split(' ');
+                filteredKeys = keys.filter(k => {
+                    const p = dbState.masterCatalog[k];
+                    return terms.every(t => `${p.nombre} ${p.lab} ${p.codBarra}`.toLowerCase().includes(t));
+                });
+            }
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            if (filteredKeys.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Base de datos vacía o sin coincidencias.</td></tr>`;
+                document.getElementById('paginationInfo').innerText = '';
+                document.getElementById('paginationControls').innerHTML = '';
+                return;
+            }
+
+            const totalPages = Math.ceil(filteredKeys.length / itemsPerPage);
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const currentKeys = filteredKeys.slice(startIndex, startIndex + itemsPerPage);
+
+            currentKeys.forEach(key => {
+                const p = dbState.masterCatalog[key];
+                const s = dbState.currentStock[key];
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b border-gray-100 transition-colors";
+                
+                const sysStockHtml = s.sysModificado ? `<span class="text-orange-600 font-extrabold" title="Modificado manualmente">${s.sys}*</span>` : `<span class="text-gray-600 font-bold">${s.sys}</span>`;
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-xs text-gray-500 font-medium">${p.lab}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 font-bold">${p.nombre}<div class="text-xs text-gray-400 font-normal mt-0.5">${p.codBarra}</div></td>
+                    <td class="px-4 py-3 text-right text-sm font-semibold text-farmaDarkPurple">${clpFormatter.format(p.precio)}</td>
+                    <td class="px-4 py-3 text-center text-sm bg-gray-50/50">
+                        <div id="sys-container-${key}" class="flex items-center justify-center gap-2">
+                            ${sysStockHtml} <button onclick="enableEditSistema('${key}')" class="text-gray-400 hover:text-farmaPurple p-1"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-center"><input type="number" class="w-20 text-center border-2 border-gray-300 rounded-md py-1 px-2 font-bold text-gray-800 text-sm focus:outline-none focus:border-farmaPurple focus:ring-1 focus:ring-farmaPurple" placeholder="-" value="${s.real}" oninput="updateRealStock('${key}', this.value)"></td>
+                    <td class="px-4 py-3 text-center text-sm" id="diff-${key}"></td>
+                `;
+                tbody.appendChild(tr);
+                renderDiffCell(key); 
+            });
+
+            document.getElementById('paginationInfo').innerHTML = `Mostrando <span class="font-bold">${startIndex + 1}</span> a <span class="font-bold">${Math.min(startIndex + itemsPerPage, filteredKeys.length)}</span> de <span class="font-bold text-farmaPurple">${filteredKeys.length}</span>`;
+            renderPaginationControls(totalPages);
+        }
+
+        function renderPaginationControls(totalPages) {
+            const container = document.getElementById('paginationControls');
+            container.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const createBtn = (html, disabled, onClick) => {
+                const btn = document.createElement('button');
+                btn.innerHTML = html;
+                btn.className = `relative inline-flex items-center px-3 py-1.5 border text-xs font-bold rounded-md transition-all ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 shadow-sm'}`;
+                btn.disabled = disabled;
+                if(!disabled) btn.onclick = onClick;
+                return btn;
+            };
+
+            container.appendChild(createBtn('<i class="fa-solid fa-chevron-left"></i>', currentPage === 1, () => { currentPage--; renderTable(); window.scrollTo(0,0); }));
+            container.appendChild(createBtn('<i class="fa-solid fa-chevron-right"></i>', currentPage === totalPages, () => { currentPage++; renderTable(); window.scrollTo(0,0); }));
+        }
+
+        function filterHistory() {
+            const startStr = document.getElementById('histStart').value;
+            const endStr = document.getElementById('histEnd').value;
+            
+            if(!startStr || !endStr) return;
+            const startTs = new Date(startStr).getTime();
+            const endTs = new Date(endStr).getTime();
+
+            currentHistory = dbState.events.filter(e => e.ts >= startTs && e.ts <= endTs).sort((a,b) => b.ts - a.ts);
+            
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+
+            if (currentHistory.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No se encontraron eventos en este rango de tiempo.</td></tr>`;
+                return;
+            }
+
+            currentHistory.forEach(e => {
+                const p = dbState.masterCatalog[e.id];
+                if(!p) return; 
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b border-gray-100";
+                
+                const dateStr = new Date(e.ts).toLocaleString('es-CL');
+                
+                let badge = "";
+                let detail = "";
+
+                if(e.type === 'PRICE_SYNC') {
+                    badge = `<span class="bg-purple-100 text-purple-700 font-bold px-2 py-1 rounded text-xs"><i class="fa-solid fa-tag mr-1"></i>Precio Maestro</span>`;
+                    detail = `${clpFormatter.format(e.oldVal || 0)} ➔ <span class="font-bold text-farmaPurple">${clpFormatter.format(e.newVal || 0)}</span>`;
+                } 
+                else if(e.type === 'MASTER_SYNC') {
+                    badge = `<span class="bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded text-xs"><i class="fa-solid fa-cloud-arrow-down mr-1"></i>Sist. Maestro</span>`;
+                    const diff = (e.newVal||0) - (e.oldVal||0);
+                    detail = `Stock: ${e.oldVal || 0} ➔ <span class="font-bold">${e.newVal || 0}</span> <span class="text-xs text-gray-400 ml-1">(Dif: ${diff > 0 ? '+'+diff : diff})</span>`;
+                }
+                else if(e.type === 'SYS_EDIT') {
+                    badge = `<span class="bg-orange-100 text-orange-700 font-bold px-2 py-1 rounded text-xs"><i class="fa-solid fa-pen-to-square mr-1"></i>Corrección Manual</span>`;
+                    detail = `Stock Teórico: ${e.oldVal || 0} ➔ <span class="font-bold text-orange-600">${e.newVal || 0}</span>`;
+                }
+                else if(e.type === 'REAL_EDIT') {
+                    badge = `<span class="bg-green-100 text-green-700 font-bold px-2 py-1 rounded text-xs"><i class="fa-solid fa-hand-holding-box mr-1"></i>Conteo Físico</span>`;
+                    const oldStr = e.oldVal === '' ? '-' : e.oldVal;
+                    const newStr = e.newVal === '' ? '-' : e.newVal;
+                    detail = `Físico: ${oldStr} ➔ <span class="font-bold text-green-700">${newStr}</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-xs text-gray-500 font-medium whitespace-nowrap">${dateStr}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${badge}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 font-bold">${p.nombre} <span class="text-xs text-gray-400 font-normal ml-1">(${p.codBarra})</span></td>
+                    <td class="px-4 py-3 text-sm">${detail}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================
+        // EXPORTACIÓN A EXCEL (.XLSX) BLINDADA PARA EAN-13
+        // ==========================================
+        function exportCurrentDifferences() {
+            const keys = Object.keys(dbState.currentStock);
+            const modifiedKeys = keys.filter(k => dbState.currentStock[k].real !== '' || dbState.currentStock[k].sysModificado);
+            
+            if (modifiedKeys.length === 0) {
+                alert("No hay diferencias ni conteos físicos registrados para exportar."); return;
+            }
+
+            let data = [];
+            modifiedKeys.forEach(k => {
+                const p = dbState.masterCatalog[k];
+                const s = dbState.currentStock[k];
+                
+                const real = s.real !== '' ? parseInt(s.real, 10) : parseInt(s.sys, 10);
+                const diff = s.real !== '' ? (real - parseInt(s.sys, 10)) : 0;
+                const flagEdit = s.sysModificado ? "Corrección Teórica" : "Conteo Físico";
+                
+                data.push({
+                    "Laboratorio": p.lab,
+                    "Código Barra": p.codBarra, // Índice 1 (Columna B)
+                    "Producto": p.nombre,
+                    "Precio": p.precio,
+                    "Stock Sist.": s.sys,
+                    "Stock Real": s.real !== '' ? real : '',
+                    "Diferencia": s.real !== '' ? diff : '',
+                    "Tipo de Ajuste": flagEdit
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            
+            // RECONSTRUCCIÓN DE CELDA: Obligar a Excel a tratar EAN-13 como texto literal
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let r = range.s.r + 1; r <= range.e.r; r++) {
+                const cellRef = XLSX.utils.encode_cell({ r: r, c: 1 }); // Columna B (Código de Barra)
+                if (worksheet[cellRef]) {
+                    // 1. Extraemos el valor limpio de nuevo desde el origen
+                    const originalStr = String(data[r - 1]["Código Barra"] || "");
+                    
+                    // 2. Aplicamos 5 bloqueos de formato simultáneos:
+                    // t: 's' -> Tipo String
+                    // v: string -> Valor puro
+                    // w: string -> Representación formateada
+                    // z: '@' -> Formato "Texto" en Excel
+                    // q: true -> Atributo 'quotePrefix', simula escribir '780... manualmente en Excel
+                    worksheet[cellRef] = { t: 's', v: originalStr, w: originalStr, z: '@', q: true };
+                }
+            }
+
+            worksheet['!cols'] = [
+                { wch: 15 }, // Lab
+                { wch: 18 }, // Código Barra
+                { wch: 45 }, // Producto
+                { wch: 12 }, // Precio
+                { wch: 12 }, // Stock Sist
+                { wch: 12 }, // Stock Real
+                { wch: 12 }, // Diferencia
+                { wch: 20 }  // Tipo de Ajuste
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Diferencias");
+            XLSX.writeFile(workbook, `AJUSTES_INVENTARIO_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function exportHistory() {
+            if (currentHistory.length === 0) {
+                alert("Primero filtra un rango de fechas que contenga datos."); return;
+            }
+
+            let data = [];
+            currentHistory.forEach(e => {
+                const p = dbState.masterCatalog[e.id];
+                if(!p) return;
+
+                const dateStr = new Date(e.ts).toLocaleString('es-CL');
+                let valAnt = e.oldVal === '' ? '-' : e.oldVal;
+                let valNue = e.newVal === '' ? '-' : e.newVal;
+
+                let accionStr = "";
+                if(e.type === 'PRICE_SYNC') accionStr = "Precio Maestro";
+                if(e.type === 'MASTER_SYNC') accionStr = "Sist. Maestro";
+                if(e.type === 'SYS_EDIT') accionStr = "Corrección Manual";
+                if(e.type === 'REAL_EDIT') accionStr = "Conteo Físico";
+
+                data.push({
+                    "Fecha y Hora": dateStr,
+                    "Acción": accionStr,
+                    "Código Barra": p.codBarra, // Índice 2 (Columna C)
+                    "Producto": p.nombre,
+                    "Valor Anterior": valAnt,
+                    "Valor Nuevo": valNue
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let r = range.s.r + 1; r <= range.e.r; r++) {
+                const cellRef = XLSX.utils.encode_cell({ r: r, c: 2 }); // Columna C (Código de Barra)
+                if (worksheet[cellRef]) {
+                    const originalStr = String(data[r - 1]["Código Barra"] || "");
+                    worksheet[cellRef] = { t: 's', v: originalStr, w: originalStr, z: '@', q: true };
+                }
+            }
+
+            worksheet['!cols'] = [
+                { wch: 20 }, // Fecha y Hora
+                { wch: 18 }, // Acción
+                { wch: 18 }, // Código Barra
+                { wch: 45 }, // Producto
+                { wch: 15 }, // Valor Anterior
+                { wch: 15 }  // Valor Nuevo
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Trazabilidad");
+            XLSX.writeFile(workbook, `REPORTE_TRAZABILIDAD_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+    </script>
+</body>
+</html>
