@@ -10,64 +10,94 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <script>
-        tailwind.config = { theme: { extend: { colors: { farmaGreen: '#8DC63F', farmaPurple: '#752888', farmaDarkPurple: '#561c65' } } } }
+        tailwind.config = { 
+            theme: { 
+                extend: { 
+                    colors: { 
+                        farmaGreen: '#8DC63F', 
+                        farmaPurple: '#752888', 
+                        farmaDarkPurple: '#561c65' 
+                    } 
+                } 
+            } 
+        }
     </script>
 
     <style>
-        body { font-family: 'Segoe UI', sans-serif; overflow-x: hidden; touch-action: pan-y; background-color: #f3f4f6; }
+        body { font-family: 'Segoe UI', sans-serif; overflow-x: hidden; touch-action: pan-y; background-color: #f4f7f6; }
         input[type="number"] { font-size: 16px; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         .loader { border: 4px solid #e5e7eb; border-top: 4px solid #752888; border-radius: 50%; width: 25px; height: 25px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .texto-ajustable { word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
+        
+        /* Ocultar barra de scroll en botones de filtro */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen pb-20">
+<body class="flex flex-col min-h-screen">
 
-    <header class="bg-farmaPurple shadow-md sticky top-0 z-50 text-white">
-        <div class="px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <i class="fa-solid fa-cloud text-2xl text-farmaGreen"></i>
+    <header class="bg-farmaPurple shadow-lg sticky top-0 z-50 text-white">
+        <!-- Barra Superior: Logos y Botones de Acción -->
+        <div class="px-4 py-3 flex justify-between items-center max-w-7xl mx-auto w-full">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-cloud text-3xl text-farmaGreen"></i>
                 <div class="leading-none">
-                    <h1 class="text-xl font-bold">Inventario Nube</h1>
-                    <span class="text-xs text-farmaGreen font-semibold">FarmaSalud Contulmo</span>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-wide">Inventario <span class="font-light">Nube</span></h1>
+                    <span class="text-xs text-farmaGreen font-bold tracking-wider uppercase">FarmaSalud Contulmo</span>
                 </div>
             </div>
-            <button onclick="resetInventarioNube()" class="text-xs bg-red-500 hover:bg-red-600 px-2 py-1 rounded text-white font-bold">
-                <i class="fa-solid fa-rotate-left"></i> Limpiar
-            </button>
+            <div class="flex gap-2">
+                <button onclick="exportarDiferencias()" class="text-xs md:text-sm bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-lg text-white font-bold transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-export"></i> <span class="hidden md:inline">Exportar Dif.</span>
+                </button>
+                <button onclick="resetInventarioNube()" class="text-xs md:text-sm bg-red-500 hover:bg-red-400 px-3 py-2 rounded-lg text-white font-bold transition shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i> <span class="hidden md:inline">Reset</span>
+                </button>
+            </div>
         </div>
         
-        <div class="bg-farmaDarkPurple px-4 py-3">
-            <div class="relative">
-                <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
-                <input type="text" id="searchInput" class="w-full py-2 pl-10 pr-4 rounded-lg text-gray-800 outline-none font-medium" placeholder="Escribe para contar..." autocomplete="off" disabled>
-            </div>
-            
-            <div class="flex gap-2 mt-3 overflow-x-auto pb-1">
-                <button onclick="setFilter('todos')" id="btn-todos" class="filter-btn bg-farmaGreen text-white px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">Todos</button>
-                <button onclick="setFilter('diferencias')" id="btn-diferencias" class="filter-btn bg-white/20 text-white px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">Con Diferencia</button>
-                <button onclick="setFilter('pendientes')" id="btn-pendientes" class="filter-btn bg-white/20 text-white px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">Sin Contar</button>
+        <!-- Barra de Búsqueda y Filtros -->
+        <div class="bg-farmaDarkPurple px-4 py-3 border-t border-purple-800">
+            <div class="max-w-7xl mx-auto w-full">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-gray-400 text-lg"></i>
+                    <input type="text" id="searchInput" class="w-full py-3 pl-12 pr-4 rounded-xl text-gray-800 outline-none font-medium text-lg shadow-inner" placeholder="Escribe para buscar y contar..." autocomplete="off" disabled>
+                </div>
+                
+                <div class="flex gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar">
+                    <button onclick="setFilter('todos')" id="btn-todos" class="filter-btn bg-farmaGreen text-white px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap shadow-sm transition">Todos los productos</button>
+                    <button onclick="setFilter('diferencias')" id="btn-diferencias" class="filter-btn bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition">Con Diferencia</button>
+                    <button onclick="setFilter('pendientes')" id="btn-pendientes" class="filter-btn bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition">Sin Contar</button>
+                </div>
             </div>
         </div>
     </header>
 
-    <main class="flex-grow w-full px-2 sm:px-4 py-4">
-        <div id="statusContainer" class="flex items-center gap-3 justify-center text-gray-500 my-10">
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 py-6">
+        <div id="statusContainer" class="flex flex-col items-center justify-center text-gray-500 my-16 gap-3">
             <div class="loader"></div>
-            <span class="font-semibold text-sm">Descargando Maestro y Nube...</span>
+            <span class="font-semibold text-base text-farmaPurple">Sincronizando Maestro y Nube...</span>
         </div>
 
-        <div class="text-xs text-gray-500 font-bold mb-3 px-2" id="resultsCount"></div>
-        <div id="productsGrid" class="flex flex-col gap-3"></div>
+        <div class="flex justify-between items-center mb-4">
+            <div class="text-sm text-gray-600 font-bold bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-100" id="resultsCount"></div>
+        </div>
+
+        <!-- GRID RESPONSIVO: 1 col en móvil, 2 en tablet, 3 en laptop, 4 en PC grande -->
+        <div id="productsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+        
+        <!-- Contenedor de Paginación -->
+        <div id="pagination" class="flex justify-center items-center gap-2 mt-10 mb-8 flex-wrap"></div>
     </main>
 
     <script>
         // ==========================================
-        // 1. TU ENLACE CSV DEL MAESTRO (El mismo de antes)
+        // 1. TU ENLACE CSV DEL MAESTRO (Ya actualizado al 11 de Junio)
         const URL_CSV_MAESTRO = "https://docs.google.com/spreadsheets/d/1GjVV8vuErPNmOIVkP-pk6VPiTrlf4IQby2v-OS0J3Zg/export?format=csv&gid=1307499139";
         
-        // 2. TU NUEVA URL DE APPS SCRIPT (Cópiala del Paso 2)
+        // 2. TU NUEVA URL DE APPS SCRIPT
         const URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxzR2WbNUe4-PB6pZOI5hZTPaX8YouVrAabWnVGQ5CypPjB_EgwbF_QwoFYCNYOnAjgeg/exec";
         // ==========================================
 
@@ -76,13 +106,18 @@
         let physicalStockMap = {}; 
         let currentFilter = 'todos';
         let debounceTimers = {};
+        
+        let currentPage = 1;
+        const itemsPerPage = 24;
 
         const clpFmt = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 });
 
         window.onload = () => {
-            document.getElementById('searchInput').addEventListener('input', applyFilters);
+            document.getElementById('searchInput').addEventListener('input', () => {
+                currentPage = 1;
+                applyFilters();
+            });
 
-            // Descargar Maestro y Stock Físico al mismo tiempo
             const fetchCSV = new Promise((resolve) => {
                 Papa.parse(URL_CSV_MAESTRO, { download: true, header: false, complete: res => resolve(res.data) });
             });
@@ -96,11 +131,12 @@
 
         function procesarDatosMaestro(rawData) {
             let tempProducts = [];
-            let headerRowIndex = 5; 
+            let headerRowIndex = -1; 
             
             for (let i = 0; i < Math.min(20, rawData.length); i++) {
                 if (rawData[i].includes("LAB") && rawData[i].includes("DETALLE")) { headerRowIndex = i; break; }
             }
+            if(headerRowIndex === -1) headerRowIndex = 5;
 
             for (let i = headerRowIndex + 1; i < rawData.length; i++) {
                 const row = rawData[i];
@@ -126,8 +162,9 @@
 
         function setFilter(type) {
             currentFilter = type;
-            document.querySelectorAll('.filter-btn').forEach(btn => { btn.classList.remove('bg-farmaGreen'); btn.classList.add('bg-white/20'); });
-            document.getElementById(`btn-${type}`).classList.remove('bg-white/20'); document.getElementById(`btn-${type}`).classList.add('bg-farmaGreen');
+            currentPage = 1;
+            document.querySelectorAll('.filter-btn').forEach(btn => { btn.classList.remove('bg-farmaGreen'); btn.classList.add('bg-white/10'); });
+            document.getElementById(`btn-${type}`).classList.remove('bg-white/10'); document.getElementById(`btn-${type}`).classList.add('bg-farmaGreen');
             applyFilters();
         }
 
@@ -144,87 +181,171 @@
                 return true; 
             });
 
-            renderProducts(filteredProducts.slice(0, 40)); // Rendimiento Móvil
+            renderPage();
         }
 
-        function renderProducts(items) {
+        function renderPage() {
             const grid = document.getElementById('productsGrid');
-            document.getElementById('resultsCount').innerHTML = `Mostrando ${items.length} de ${filteredProducts.length} (Usa el buscador para afinar)`;
-            grid.innerHTML = items.length === 0 ? `<div class="text-center py-10 text-gray-400"><i class="fa-solid fa-box-open text-3xl mb-2"></i><p>Nada por aquí.</p></div>` : '';
+            const totalItems = filteredProducts.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            document.getElementById('resultsCount').innerHTML = `<i class="fa-solid fa-list text-farmaPurple mr-2"></i> ${totalItems} resultados encontrados`;
+            
+            grid.innerHTML = '';
 
-            items.forEach(item => {
+            if (totalItems === 0) {
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 bg-white rounded-2xl shadow-sm"><i class="fa-solid fa-box-open text-5xl mb-4 text-gray-300"></i><p class="text-lg">No hay productos que coincidan con la búsqueda.</p></div>`;
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const currentItems = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+
+            currentItems.forEach(item => {
                 let fisicoVal = physicalStockMap[item.id] !== undefined ? physicalStockMap[item.id] : "";
                 
                 const card = document.createElement('div');
-                card.className = `bg-white rounded-xl p-3 shadow-sm border-l-4 ${fisicoVal !== "" ? 'border-farmaGreen' : 'border-gray-200'} relative`;
+                card.className = `bg-white rounded-2xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border-t-4 ${fisicoVal !== "" ? 'border-farmaGreen' : 'border-gray-200'} flex flex-col h-full hover:shadow-md transition duration-200`;
                 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
-                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${item.lab}</div>
-                        <i id="cloud_${item.id}" class="fa-solid fa-cloud text-gray-200 text-sm" title="Estado de guardado"></i>
+                        <div class="text-[10px] font-black text-gray-400 uppercase tracking-wider bg-gray-50 px-2 py-0.5 rounded">${item.lab}</div>
+                        <i id="cloud_${item.id}" class="fa-solid fa-cloud text-gray-200 text-sm" title="Estado Nube"></i>
                     </div>
-                    <h3 class="text-sm font-bold text-gray-800 mb-4 leading-tight texto-ajustable">${item.nombre}</h3>
+                    <h3 class="text-sm md:text-base font-bold text-gray-800 mb-4 leading-snug texto-ajustable flex-grow">${item.nombre}</h3>
                     
-                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-2 border border-gray-100">
+                    <div class="flex items-center justify-between bg-gray-50 rounded-xl p-2 md:p-3 border border-gray-100">
                         <div class="text-center flex-1">
-                            <span class="block text-[10px] text-gray-500 uppercase font-bold">Sistema</span>
+                            <span class="block text-[10px] text-gray-500 uppercase font-bold mb-1">Sistema</span>
                             <span class="text-lg font-black text-gray-700">${item.stockSistema}</span>
                         </div>
-                        <div class="w-px h-8 bg-gray-200 mx-1"></div>
+                        <div class="w-px h-10 bg-gray-200 mx-1"></div>
                         <div class="text-center flex-1">
-                            <span class="block text-[10px] text-farmaPurple uppercase font-bold">Físico</span>
+                            <span class="block text-[10px] text-farmaPurple uppercase font-bold mb-1">Físico</span>
                             <input type="number" value="${fisicoVal}" oninput="handleStockInput('${item.id}', ${item.stockSistema}, this.value)"
-                                class="w-16 h-8 mt-1 text-center font-bold text-lg border-2 border-farmaPurple rounded focus:ring-2 focus:ring-farmaGreen outline-none">
+                                class="w-14 h-8 text-center font-bold text-lg border-2 border-farmaPurple rounded-lg focus:ring-2 focus:ring-farmaGreen outline-none transition shadow-sm">
                         </div>
-                        <div class="w-px h-8 bg-gray-200 mx-1"></div>
+                        <div class="w-px h-10 bg-gray-200 mx-1"></div>
                         <div class="text-center flex-1">
-                            <span class="block text-[10px] text-gray-500 uppercase font-bold">Dif.</span>
-                            <div id="diff_${item.id}" class="mt-1 px-2 py-0.5 rounded text-sm font-black">-</div>
+                            <span class="block text-[10px] text-gray-500 uppercase font-bold mb-1">Dif.</span>
+                            <div id="diff_${item.id}" class="px-2 py-0.5 rounded text-sm font-black">-</div>
                         </div>
                     </div>
                 `;
                 grid.appendChild(card);
-                actualizarVisualDiferencia(item.id, item.stockSistema, fisicoVal); // Forzar cálculo de color
+                actualizarVisualDiferencia(item.id, item.stockSistema, fisicoVal);
             });
+
+            renderPagination(totalPages);
         }
 
         window.handleStockInput = function(id, stockSistema, val) {
             actualizarVisualDiferencia(id, stockSistema, val);
             
-            // Actualizar memoria RAM para navegación rápida
             if(val === "") delete physicalStockMap[id];
             else physicalStockMap[id] = parseInt(val);
 
-            // Ícono amarillo: Guardando...
             document.getElementById('cloud_' + id).className = "fa-solid fa-cloud text-yellow-400 text-sm";
 
-            // Enviar a la nube (con retraso de 800ms para no enviar datos mientras sigues tecleando)
             if (debounceTimers[id]) clearTimeout(debounceTimers[id]);
             debounceTimers[id] = setTimeout(() => {
                 fetch(`${URL_APPS_SCRIPT}?action=update&id=${encodeURIComponent(id)}&qty=${val}`)
-                .then(() => {
-                    document.getElementById('cloud_' + id).className = "fa-solid fa-cloud text-farmaGreen text-sm"; // Verde: Guardado
-                })
-                .catch(() => {
-                    document.getElementById('cloud_' + id).className = "fa-solid fa-cloud text-red-500 text-sm"; // Rojo: Error de internet
-                });
+                .then(() => { document.getElementById('cloud_' + id).className = "fa-solid fa-cloud text-farmaGreen text-sm"; })
+                .catch(() => { document.getElementById('cloud_' + id).className = "fa-solid fa-cloud text-red-500 text-sm"; });
             }, 800);
         };
 
         function actualizarVisualDiferencia(id, stockSistema, val) {
             let dEl = document.getElementById('diff_' + id);
             if(!dEl) return;
-            if (val === "") { dEl.innerHTML = "-"; dEl.className = "mt-1 px-2 py-0.5 rounded text-sm font-black text-gray-400"; return; }
+            if (val === "") { dEl.innerHTML = "-"; dEl.className = "px-2 py-0.5 rounded text-sm font-black text-gray-400"; return; }
             let dif = parseInt(val) - stockSistema;
-            if (dif === 0) { dEl.innerHTML = "<i class='fa-solid fa-check'></i>"; dEl.className = "mt-1 px-2 py-0.5 rounded text-sm font-black text-green-600 bg-green-100"; }
-            else if (dif > 0) { dEl.innerHTML = "+" + dif; dEl.className = "mt-1 px-2 py-0.5 rounded text-sm font-black text-blue-600 bg-blue-100"; }
-            else { dEl.innerHTML = dif; dEl.className = "mt-1 px-2 py-0.5 rounded text-sm font-black text-red-600 bg-red-100"; }
+            if (dif === 0) { dEl.innerHTML = "<i class='fa-solid fa-check'></i>"; dEl.className = "px-2 py-0.5 rounded text-sm font-black text-green-600 bg-green-100"; }
+            else if (dif > 0) { dEl.innerHTML = "+" + dif; dEl.className = "px-2 py-0.5 rounded text-sm font-black text-blue-600 bg-blue-100"; }
+            else { dEl.innerHTML = dif; dEl.className = "px-2 py-0.5 rounded text-sm font-black text-red-600 bg-red-100"; }
         }
 
+        function renderPagination(totalPages) {
+            const container = document.getElementById('pagination');
+            container.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+            prevBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold mx-1 transition ${currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed bg-white' : 'text-farmaPurple border-farmaPurple hover:bg-farmaPurple hover:text-white bg-white'}`;
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { if(currentPage > 1) { currentPage--; renderPage(); window.scrollTo(0, 0); } };
+            container.appendChild(prevBtn);
+
+            const info = document.createElement('span');
+            info.className = "text-sm font-bold text-gray-600 px-4 bg-white py-2 rounded-xl border border-gray-200 shadow-sm";
+            info.innerText = `Pág ${currentPage} de ${totalPages}`;
+            container.appendChild(info);
+
+            const nextBtn = document.createElement('button');
+            nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            nextBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center border-2 font-bold mx-1 transition ${currentPage === totalPages ? 'text-gray-300 border-gray-200 cursor-not-allowed bg-white' : 'text-farmaPurple border-farmaPurple hover:bg-farmaPurple hover:text-white bg-white'}`;
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { if(currentPage < totalPages) { currentPage++; renderPage(); window.scrollTo(0, 0); } };
+            container.appendChild(nextBtn);
+        }
+
+        // ==========================================
+        // FUNCIONES DE EXPORTACIÓN Y RESET
+        // ==========================================
+        window.exportarDiferencias = function() {
+            // Filtrar solo los que tienen datos físicos y difieren del sistema
+            const diferencias = allProducts.filter(p => {
+                const fisico = physicalStockMap[p.id];
+                return fisico !== undefined && parseInt(fisico) !== p.stockSistema;
+            });
+
+            if (diferencias.length === 0) {
+                alert("¡Excelente! No hay diferencias de inventario registradas en este momento.");
+                return;
+            }
+
+            // Crear el encabezado del archivo CSV
+            let csvContent = "Laboratorio,Producto,Precio CLP,Stock Sistema,Stock Fisico,Diferencia\n";
+            
+            diferencias.forEach(p => {
+                let fisico = parseInt(physicalStockMap[p.id]);
+                let dif = fisico - p.stockSistema;
+                // Escapamos las comillas por si el nombre del producto tiene comas
+                let nombreLimpio = p.nombre.replace(/"/g, '""');
+                csvContent += `"${p.lab}","${nombreLimpio}",${p.precio},${p.stockSistema},${fisico},${dif}\n`;
+            });
+
+            // Obtener fecha y hora actual para el nombre del archivo
+            const ahora = new Date();
+            const fecha = ahora.toLocaleDateString('es-CL').replace(/\//g, '-');
+            const hora = ahora.toLocaleTimeString('es-CL').replace(/:/g, '-');
+            const nombreArchivo = `Diferencias_FarmaSalud_${fecha}_${hora}.csv`;
+
+            // Crear el archivo y forzar la descarga
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // \uFEFF fuerza codificación UTF-8 en Excel
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", nombreArchivo);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
         window.resetInventarioNube = function() {
-            if(confirm("¿Estás seguro? Esto borrará TODO el inventario físico guardado en la nube para todos los dispositivos.")) {
+            if(confirm("¿Estás seguro de BORRAR TODOS los conteos físicos de la nube? Esto iniciará un inventario desde cero.")) {
                 fetch(`${URL_APPS_SCRIPT}?action=reset`)
-                .then(() => { physicalStockMap = {}; applyFilters(); alert("Base de datos en la nube limpiada."); });
+                .then(() => { 
+                    physicalStockMap = {}; 
+                    currentPage = 1;
+                    applyFilters(); 
+                    alert("Base de datos en la nube limpiada correctamente."); 
+                });
             }
         };
     </script>
