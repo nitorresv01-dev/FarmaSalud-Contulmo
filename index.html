@@ -285,14 +285,18 @@
             container.appendChild(createBtn('<i class="fa-solid fa-chevron-right"></i>', currentPage === totalPages, () => { currentPage++; renderPage(); window.scrollTo(0, 0); }));
         }
 
-        // ====== HISTORIAL Y EXPORTACIÓN ======
+// ====== HISTORIAL Y EXPORTACIÓN (CORREGIDO PARA EXCEL EN ESPAÑOL) ======
         window.guardarAuditoria = function() {
+            // Filtro mejorado para evitar errores NaN
             const diferencias = allProducts.filter(p => {
                 const fisico = physicalStockMap[p.id];
-                return fisico !== undefined && parseInt(fisico) !== p.stockSistema;
+                return fisico !== undefined && fisico !== "" && !isNaN(parseInt(fisico)) && parseInt(fisico) !== p.stockSistema;
             });
 
-            if (diferencias.length === 0) { alert("No hay diferencias reportadas para guardar ni exportar."); return; }
+            if (diferencias.length === 0) { 
+                alert("No hay diferencias reportadas para guardar ni exportar."); 
+                return; 
+            }
 
             const ahora = new Date();
             const fechaHoraFormateada = ahora.toLocaleString('es-CL');
@@ -309,7 +313,7 @@
             fetch(`${URL_APPS_SCRIPT}?action=save_history`, {
                 method: 'POST',
                 body: JSON.stringify({ id: idAuditoria, fecha_hora: fechaHoraFormateada, total: diferencias.length, datos: payloadData }),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' } // text/plain evita errores CORS
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             })
             .then(res => res.json())
             .then(data => {
@@ -322,7 +326,7 @@
                 alert("Hubo un error guardando en la nube. Revisa tu internet.");
             });
         };
-
+        
         function cargarHistorial() {
             document.getElementById('historial-loader').classList.remove('hidden');
             document.getElementById('historial-list').innerHTML = '';
@@ -370,12 +374,14 @@
             if(reporte) generarCSV(JSON.parse(reporte.datos), reporte.fecha_hora);
         }
 
-        function generarCSV(datosArray, fechaHoraStr) {
-            let csvContent = "Laboratorio,Producto,Precio CLP,Stock Sistema,Stock Fisico,Diferencia\n";
+function generarCSV(datosArray, fechaHoraStr) {
+            // CAMBIO CLAVE: Usamos punto y coma (;) en vez de coma (,) para que Excel lo abra perfecto
+            let csvContent = "Laboratorio;Producto;Precio CLP;Stock Sistema;Stock Fisico;Diferencia\n";
             datosArray.forEach(p => {
                 let nombreLimpio = p.nombre.replace(/"/g, '""');
-                csvContent += `"${p.lab}","${nombreLimpio}",${p.precio},${p.sistema},${p.fisico},${p.dif}\n`;
+                csvContent += `"${p.lab}";"${nombreLimpio}";${p.precio};${p.sistema};${p.fisico};${p.dif}\n`;
             });
+            
             const fechaLimpia = fechaHoraStr.replace(/[\/\s:]/g, '-');
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
@@ -383,8 +389,10 @@
                 const url = URL.createObjectURL(blob);
                 link.setAttribute("href", url);
                 link.setAttribute("download", `Dif_FarmaSalud_${fechaLimpia}.csv`);
-                link.style.visibility = 'hidden'; document.body.appendChild(link);
-                link.click(); document.body.removeChild(link);
+                link.style.visibility = 'hidden'; 
+                document.body.appendChild(link);
+                link.click(); 
+                document.body.removeChild(link);
             }
         }
 
